@@ -1,0 +1,121 @@
+/* styles.css - Styles pour le widget dans Gmail */
+
+#gmail-carbon-widget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 280px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 9999;
+  font-family: 'Google Sans', 'Roboto', Arial, sans-serif;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#gmail-carbon-widget:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.carbon-widget-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.carbon-icon {
+  font-size: 24px;
+}
+
+.carbon-title {
+  flex: 1;
+}
+
+.carbon-widget-content {
+  padding: 20px;
+}
+
+.carbon-loading {
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  padding: 10px 0;
+}
+
+.carbon-results {
+  text-align: center;
+}
+
+.carbon-main-score {
+  margin-bottom: 12px;
+}
+
+.carbon-value {
+  font-size: 42px;
+  font-weight: bold;
+  color: #667eea;
+  display: block;
+  line-height: 1;
+}
+
+.carbon-unit {
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
+}
+
+.carbon-details {
+  color: #888;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.carbon-email-count {
+  display: block;
+  font-weight: 500;
+}
+
+.carbon-refresh-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.carbon-refresh-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.carbon-refresh-btn:active {
+  transform: translateY(0);
+}
+
+/* Animation d'apparition */
+@keyframes slideIn {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+#gmail-carbon-widget {
+  animation: slideIn 0.5s ease-out;
+}
