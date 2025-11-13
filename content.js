@@ -1,9 +1,9 @@
-// content.js - Script injecté dans Gmail pour afficher le score carbone
+// content.js - Script injected into Gmail to display carbon score
 
 (function() {
   'use strict';
-  
-  // Créer le widget de score carbone
+
+  // Create the carbon score widget
   function createCarbonWidget() {
     const widget = document.createElement('div');
     widget.id = 'gmail-carbon-widget';
@@ -14,7 +14,7 @@
       </div>
       <div class="carbon-widget-content">
         <div class="carbon-loading">
-          Chargement...
+          Loading...
         </div>
         <div class="carbon-results" style="display: none;">
           <div class="carbon-main-score">
@@ -31,21 +31,21 @@
     
     return widget;
   }
-  
-  // Injecter le widget dans Gmail
+
+  // Inject the widget into Gmail
   function injectWidget() {
-    // Attendre que Gmail soit chargé
+    // Wait for Gmail to be loaded
     const checkGmailLoaded = setInterval(() => {
       const gmailSidebar = document.querySelector('[role="navigation"]');
       
       if (gmailSidebar && !document.getElementById('gmail-carbon-widget')) {
         const widget = createCarbonWidget();
         gmailSidebar.parentElement.insertBefore(widget, gmailSidebar.nextSibling);
-        
-        // Charger les résultats
+
+        // Load the results
         loadCarbonScore();
-        
-        // Gérer le clic sur le bouton de rafraîchissement
+
+        // Handle click on the refresh button
         const refreshBtn = widget.querySelector('.carbon-refresh-btn');
         refreshBtn.addEventListener('click', () => {
           chrome.runtime.sendMessage({ action: 'analyze' }, (response) => {
@@ -58,12 +58,12 @@
         clearInterval(checkGmailLoaded);
       }
     }, 1000);
-    
-    // Arrêter après 30 secondes
+
+    // Stop after 30 seconds
     setTimeout(() => clearInterval(checkGmailLoaded), 30000);
   }
-  
-  // Charger le score carbone
+
+  // Load the carbon score
   function loadCarbonScore() {
     chrome.runtime.sendMessage({ action: 'getResults' }, (response) => {
       if (response.success && response.data) {
@@ -72,13 +72,13 @@
         const widget = document.getElementById('gmail-carbon-widget');
         if (widget) {
           const loading = widget.querySelector('.carbon-loading');
-          loading.textContent = 'Cliquez sur l\'extension pour analyser';
+          loading.textContent = 'Click on the extension to analyze';
         }
       }
     });
   }
-  
-  // Mettre à jour le widget avec les données
+
+  // Update the widget with data
   function updateWidget(data) {
     const widget = document.getElementById('gmail-carbon-widget');
     if (!widget) return;
@@ -92,10 +92,10 @@
     results.style.display = 'block';
     
     value.textContent = data.totalCO2Kg;
-    emailCount.textContent = `${data.totalEmails.toLocaleString('fr-FR')} emails`;
+    emailCount.textContent = `${data.totalEmails.toLocaleString('en-US')} emails`;
   }
-  
-  // Démarrer l'injection
+
+  // Start the injection
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectWidget);
   } else {

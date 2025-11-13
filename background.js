@@ -1,16 +1,16 @@
-// background.js - Service Worker pour l'extension Gmail Carbon Score
+// background.js - Service Worker for the Gmail Carbon Score extension
 
-// Constantes pour le calcul de l'empreinte carbone (basées sur les données ADEME)
-const CO2_PER_EMAIL_SIMPLE = 4; // grammes de CO2
-const CO2_PER_EMAIL_WITH_ATTACHMENT = 35; // grammes de CO2
-const ATTACHMENT_SIZE_THRESHOLD = 100000; // 100KB - seuil pour considérer qu'il y a une pièce jointe significative
+// Constants for carbon footprint calculation (based on ADEME data)
+const CO2_PER_EMAIL_SIMPLE = 4; // grams of CO2
+const CO2_PER_EMAIL_WITH_ATTACHMENT = 35; // grams of CO2
+const ATTACHMENT_SIZE_THRESHOLD = 100000; // 100KB - threshold to consider a significant attachment
 const NUMBER_OF_MAILS_TO_ANALYSE = null;
-const BATCH_SIZE = 100; // Taille d'un batch pour l'API Gmail (max 100)
-const PARALLEL_BATCHES = 1; // Nombre de batchs exécutés en parallèle
+const BATCH_SIZE = 100; // Batch size for Gmail API (max 100)
+const PARALLEL_BATCHES = 1; // Number of batches executed in parallel
 console.log("test");
 
 // ============================================
-// AUTHENTIFICATION
+// AUTHENTICATION
 // ============================================
 
 async function getAuthToken() {
@@ -26,7 +26,7 @@ async function getAuthToken() {
 }
 
 // ============================================
-// RÉCUPÉRATION DE LA LISTE DES MESSAGES
+// RETRIEVING MESSAGE LIST
 // ============================================
 
 async function getAllMessages(token, maxResults = null) {
@@ -35,13 +35,13 @@ async function getAllMessages(token, maxResults = null) {
   let pageCount = 0;
 
   try {
-    // Si maxResults est null, on récupère TOUT
+    // If maxResults is null, we fetch ALL messages
     const fetchAll = maxResults === null;
 
     console.log(
       fetchAll
-        ? "🔍 Récupération de TOUS les messages..."
-        : `🔍 Récupération jusqu'à ${maxResults} messages...`
+        ? "🔍 Retrieving ALL messages..."
+        : `🔍 Retrieving up to ${maxResults} messages...`
     );
 
     do {
@@ -49,7 +49,7 @@ async function getAllMessages(token, maxResults = null) {
         "https://www.googleapis.com/gmail/v1/users/me/messages"
       );
 
-      // Calculer combien de messages il reste à récupérer
+      // Calculate how many messages remain to be retrieved
       const remaining = fetchAll ? 500 : maxResults - messages.length;
       const pageSize = Math.min(500, remaining);
 
@@ -60,7 +60,7 @@ async function getAllMessages(token, maxResults = null) {
 
       pageCount++;
       console.log(
-        `📄 Page ${pageCount} (${messages.length} messages jusqu'ici)...`
+        `📄 Page ${pageCount} (${messages.length} messages so far)...`
       );
 
       const response = await fetch(url, {
@@ -77,33 +77,33 @@ async function getAllMessages(token, maxResults = null) {
 
       if (data.messages) {
         messages.push(...data.messages);
-        console.log(`   ✅ ${messages.length} messages récupérés`);
+        console.log(`   ✅ ${messages.length} messages retrieved`);
       }
 
       pageToken = data.nextPageToken;
 
-      // Arrêter si :
-      // - Mode limité ET on a atteint le max
-      // - Plus de pages disponibles
+      // Stop if:
+      // - Limited mode AND we've reached the max
+      // - No more pages available
       if ((!fetchAll && messages.length >= maxResults) || !pageToken) {
         break;
       }
 
-      // Petite pause entre les pages pour éviter les rate limits
+      // Short pause between pages to avoid rate limits
       await new Promise((resolve) => setTimeout(resolve, 100));
     } while (true);
 
-    console.log(`🎯 Total: ${messages.length} messages récupérés`);
+    console.log(`🎯 Total: ${messages.length} messages retrieved`);
 
     return fetchAll ? messages : messages.slice(0, maxResults);
   } catch (error) {
-    console.error("❌ Erreur récupération messages:", error);
+    console.error("❌ Error retrieving messages:", error);
     throw error;
   }
 }
 
 // ============================================
-// BATCH API - RÉCUPÉRATION RAPIDE DES DÉTAILS
+// BATCH API - FAST RETRIEVAL OF DETAILS
 // ============================================
 
 async function executeBatchRequest(token, messageIds) {
@@ -121,7 +121,7 @@ async function executeBatchRequest(token, messageIds) {
   batchBody += `--${boundary}--`;
 
   try {
-    console.log(`   🔧 Envoi batch de ${messageIds.length} messages...`);
+    console.log(`   🔧 Sending batch of ${messageIds.length} messages...`);
 
     const response = await fetch(
       "https://gmail.googleapis.com/batch/gmail/v1",
@@ -140,7 +140,7 @@ async function executeBatchRequest(token, messageIds) {
 
     if (!response.ok) {
       if (response.status === 429) {
-        console.log("⚠️ Rate limit, attente 2s...");
+        console.log("⚠️ Rate limit, waiting 2s...");
         await new Promise((resolve) => setTimeout(resolve, 2000));
         return executeBatchRequest(token, messageIds);
       }
@@ -152,7 +152,7 @@ async function executeBatchRequest(token, messageIds) {
 
     const responseText = await response.text();
 
-    // ⚠️ DEBUG CRITIQUE
+    // ⚠️ CRITICAL DEBUG
     console.log(`   📊 Response length: ${responseText.length} chars`);
     console.log(`   📄 First 500 chars:`, responseText.substring(0, 500));
     console.log(
@@ -160,9 +160,9 @@ async function executeBatchRequest(token, messageIds) {
       responseText.substring(responseText.length - 500)
     );
 
-    // Vérifier si la réponse est vide
+    // Check if response is empty
     if (!responseText || responseText.trim().length === 0) {
-      console.error("❌ RÉPONSE VIDE !");
+      console.error("❌ EMPTY RESPONSE!");
       return [];
     }
 
@@ -177,22 +177,22 @@ function parseBatchResponse(responseText) {
   const results = [];
 
   try {
-    // ⚠️ FIX : Gmail renvoie "response-item" pas "item"
+    // ⚠️ FIX: Gmail returns "response-item" not "item"
     const parts = responseText.split(/Content-ID: <response-item\d+>/);
 
-    console.log(`   📦 ${parts.length - 1} parties détectées`);
+    console.log(`   📦 ${parts.length - 1} parts detected`);
 
     for (let i = 1; i < parts.length; i++) {
       const part = parts[i];
 
       try {
-        // Ignorer les erreurs 429
+        // Ignore 429 errors
         if (part.includes("429 Too Many Requests")) {
-          console.warn("   ⚠️ Partie avec erreur 429 ignorée");
+          console.warn("   ⚠️ Part with 429 error ignored");
           continue;
         }
 
-        // Chercher le JSON avec sizeEstimate
+        // Search for JSON with sizeEstimate
         const jsonMatch = part.match(/\{[\s\S]*?"sizeEstimate"[\s\S]*?\}/);
 
         if (jsonMatch) {
@@ -203,15 +203,15 @@ function parseBatchResponse(responseText) {
           }
         }
       } catch (e) {
-        // Continuer silencieusement
+        // Continue silently
         continue;
       }
     }
   } catch (e) {
-    console.error("❌ Erreur parsing global:", e);
+    console.error("❌ Global parsing error:", e);
   }
 
-  console.log(`   ✅ ${results.length} messages parsés`);
+  console.log(`   ✅ ${results.length} messages parsed`);
 
   return results;
 }
@@ -234,35 +234,35 @@ async function getTotalEmailCount(token) {
     const data = await response.json();
     return data.messagesTotal || 0;
   } catch (error) {
-    console.error("❌ Erreur récupération du total:", error);
+    console.error("❌ Error retrieving total:", error);
     return null;
   }
 }
 
 // ============================================
-// TRAITEMENT PAR BATCH AVEC PARALLÉLISATION
+// BATCH PROCESSING WITH PARALLELIZATION
 // ============================================
 
 async function getMessageDetailsBatch(token, messageIds) {
-  // Découper en batchs de BATCH_SIZE (100)
+  // Split into batches of BATCH_SIZE (100)
   const batches = [];
   for (let i = 0; i < messageIds.length; i += BATCH_SIZE) {
     batches.push(messageIds.slice(i, i + BATCH_SIZE));
   }
 
   console.log(
-    `📦 ${messageIds.length} messages à analyser en ${batches.length} batchs`
+    `📦 ${messageIds.length} messages to analyze in ${batches.length} batches`
   );
 
   const allDetails = [];
   let processedMessages = 0;
 
-  // Traiter les batchs par groupes parallèles de PARALLEL_BATCHES
+  // Process batches in parallel groups of PARALLEL_BATCHES
   for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
     const parallelBatches = batches.slice(i, i + PARALLEL_BATCHES);
 
     console.log(
-      `🔄 Traitement du groupe ${
+      `🔄 Processing group ${
         Math.floor(i / PARALLEL_BATCHES) + 1
       }/${Math.ceil(batches.length / PARALLEL_BATCHES)}`
     );
@@ -272,29 +272,29 @@ async function getMessageDetailsBatch(token, messageIds) {
       0
     );
 
-    // Exécuter PARALLEL_BATCHES en même temps
+    // Execute PARALLEL_BATCHES at the same time
     const batchPromises = parallelBatches.map((batch) =>
       executeBatchRequest(token, batch)
     );
 
     const results = await Promise.all(batchPromises);
 
-    // Aplatir les résultats
+    // Flatten the results
     results.forEach((batchResult) => {
       allDetails.push(...batchResult);
     });
 
     processedMessages += messagesInGroup;
 
-    // Notifier la progression
+    // Notify progress
     chrome.runtime.sendMessage({
       type: "progress",
-      processed: processedMessages, // ⚠️ Utiliser processedMessages au lieu de allDetails.length
+      processed: processedMessages, // ⚠️ Use processedMessages instead of allDetails.length
       total: messageIds.length,
       percentage: Math.round((processedMessages / messageIds.length) * 100),
     });
 
-    // Petite pause entre chaque groupe de batchs parallèles (éviter 429)
+    // Short pause between each group of parallel batches (avoid 429)
     if (i + PARALLEL_BATCHES < batches.length) {
       const pause = batches.length > 50 ? 2000 : 1500;
       await new Promise((resolve) => setTimeout(resolve, pause));
@@ -302,14 +302,14 @@ async function getMessageDetailsBatch(token, messageIds) {
   }
 
   console.log(
-    `✅ ${allDetails.length} messages analysés sur ${messageIds.length} demandés`
+    `✅ ${allDetails.length} messages analyzed out of ${messageIds.length} requested`
   );
 
   return allDetails;
 }
 
 // ============================================
-// CALCUL DE L'EMPREINTE CARBONE
+// CARBON FOOTPRINT CALCULATION
 // ============================================
 
 function calculateCarbonFootprint(messageSize) {
@@ -320,44 +320,44 @@ function calculateCarbonFootprint(messageSize) {
 }
 
 // ============================================
-// ANALYSE PRINCIPALE
+// MAIN ANALYSIS
 // ============================================
 
 async function analyzeMailbox() {
   try {
     const token = await getAuthToken();
 
-    // 1️⃣ Récupérer le nombre total d'emails
-    console.log("📬 Récupération du nombre total d'emails...");
+    // 1️⃣ Retrieve total number of emails
+    console.log("📬 Retrieving total number of emails...");
     const totalInMailbox = await getTotalEmailCount(token);
-    console.log(`✅ ${totalInMailbox} emails au total dans la boîte mail`);
+    console.log(`✅ ${totalInMailbox} emails total in mailbox`);
 
-    // 2️⃣ Décider combien analyser
+    // 2️⃣ Decide how many to analyze
     const analyzeAll =
       NUMBER_OF_MAILS_TO_ANALYSE === null ||
       NUMBER_OF_MAILS_TO_ANALYSE >= totalInMailbox;
 
     if (analyzeAll) {
-      console.log("📧 Analyse de TOUS les emails...");
+      console.log("📧 Analyzing ALL emails...");
     } else {
       console.log(
-        `📧 Analyse des ${NUMBER_OF_MAILS_TO_ANALYSE} derniers emails...`
+        `📧 Analyzing the last ${NUMBER_OF_MAILS_TO_ANALYSE} emails...`
       );
     }
 
-    // 3️⃣ Récupérer les messages
+    // 3️⃣ Retrieve messages
     const messages = await getAllMessages(
       token,
       analyzeAll ? null : NUMBER_OF_MAILS_TO_ANALYSE
     );
 
-    console.log(`🔍 Analyse détaillée de ${messages.length} messages...`);
+    console.log(`🔍 Detailed analysis of ${messages.length} messages...`);
 
-    // 4️⃣ Analyser avec Batch API
+    // 4️⃣ Analyze with Batch API
     const messageIds = messages.map((m) => m.id);
     const details = await getMessageDetailsBatch(token, messageIds);
 
-    // 5️⃣ Calculer les statistiques
+    // 5️⃣ Calculate statistics
     let totalCO2 = 0;
     let emailsWithAttachments = 0;
     let emailsSimple = 0;
@@ -380,8 +380,8 @@ async function analyzeMailbox() {
 
     console.log(
       skippedMessages > 0
-        ? `⚠️ ${skippedMessages} messages ignorés`
-        : "✅ Tous les messages analysés"
+        ? `⚠️ ${skippedMessages} messages skipped`
+        : "✅ All messages analyzed"
     );
 
     const results = {
@@ -402,7 +402,7 @@ async function analyzeMailbox() {
       carEquivalentKm: Math.round(totalCO2 / 200),
     };
 
-    console.log("📊 Résultats:", results);
+    console.log("📊 Results:", results);
 
     await chrome.storage.local.set({ carbonResults: results });
 
@@ -413,7 +413,7 @@ async function analyzeMailbox() {
 
     return results;
   } catch (error) {
-    console.error("❌ Erreur analyse:", error);
+    console.error("❌ Analysis error:", error);
     throw error;
   }
 }
@@ -427,7 +427,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     analyzeMailbox()
       .then((results) => sendResponse({ success: true, data: results }))
       .catch((error) => sendResponse({ success: false, error: error.message }));
-    return true; // Indique qu'on va répondre de manière asynchrone
+    return true; // Indicates that we will respond asynchronously
   }
 
   if (request.action === "getResults") {
