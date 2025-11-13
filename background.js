@@ -286,12 +286,12 @@ async function getMessageDetailsBatch(token, messageIds) {
 
     processedMessages += messagesInGroup;
 
-    // Notify progress
+    // Notify progress - only count successfully processed messages
     chrome.runtime.sendMessage({
       type: "progress",
-      processed: processedMessages, // ⚠️ Use processedMessages instead of allDetails.length
+      processed: allDetails.length, // Use allDetails.length to only count successful 200 responses
       total: messageIds.length,
-      percentage: Math.round((processedMessages / messageIds.length) * 100),
+      percentage: Math.round((allDetails.length / messageIds.length) * 100),
     });
 
     // Short pause between each group of parallel batches (avoid 429)
