@@ -1,0 +1,24 @@
+{
+  "name": "gmail-carbon-score",
+  "version": "1.0.0",
+  "description": "Chrome extension to calculate carbon footprint of Gmail mailbox",
+  "scripts": {
+    "build": "npm run clean && npm run compile && npm run copy && npm run zip",
+    "clean": "rm -rf dist",
+    "compile": "tsc",
+    "copy": "cp manifest.json popup.html styles.css dist/ && cp -r icons dist/",
+    "zip": "cd dist && zip -r ../gmail-carbon-score.zip . && cd ..",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "chrome-extension",
+    "gmail",
+    "carbon-footprint"
+  ],
+  "author": "",
+  "license": "MIT"
+}
