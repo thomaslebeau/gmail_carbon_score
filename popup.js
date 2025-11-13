@@ -1,5 +1,9 @@
 // popup.js - Script for the extension's user interface
 
+// Constants for CO2 comparisons
+const CO2_PER_KM_CAR = 0.21; // kg CO2 per km by car
+const CO2_PER_MEAL = 2; // kg CO2 per meal
+
 document.addEventListener("DOMContentLoaded", () => {
   const analyzeBtn = document.getElementById("analyzeBtn");
   const resultsDiv = document.getElementById("results");
@@ -9,13 +13,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const progressText = document.getElementById("progressText");
   const logoutBtn = document.getElementById("logoutBtn");
 
-  // ⚠️ CALL displayConnectedAccount() on startup
+  // Initialize on startup
   displayConnectedAccount();
-
-  // Load existing results on startup
   loadExistingResults();
 
-  // Handle click on the analyze button
+  // Event listeners
   analyzeBtn.addEventListener("click", () => {
     startAnalysis();
   });
@@ -24,7 +26,9 @@ document.addEventListener("DOMContentLoaded", () => {
     logout();
   });
 
-  // ⚠️ FUNCTION displayConnectedAccount (moved here)
+  /**
+   * Displays the connected Gmail account email
+   */
   async function displayConnectedAccount() {
     try {
       const token = await new Promise((resolve) => {
@@ -66,6 +70,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  /**
+   * Logs out the user and clears stored data
+   */
   async function logout() {
     if (!confirm("Do you want to log out?")) {
       return;
@@ -100,7 +107,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Function to start the analysis
+  /**
+   * Starts the mailbox analysis
+   */
   function startAnalysis() {
     // Disable the button and show progress
     analyzeBtn.disabled = true;
@@ -125,7 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Function to load existing results
+  /**
+   * Loads and displays existing analysis results from storage
+   */
   function loadExistingResults() {
     chrome.runtime.sendMessage({ action: "getResults" }, (response) => {
       if (response.success && response.data) {
@@ -134,7 +145,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Function to display results
+  /**
+   * Displays analysis results in the UI
+   * @param {Object} data - Analysis results data
+   */
   function displayResults(data) {
     // Display the results section
     resultsDiv.classList.add("show");
@@ -153,8 +167,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Comparison calculations
     const totalCO2Kg = parseFloat(data.totalCO2Kg);
-    const kmInCar = (totalCO2Kg / 0.21).toFixed(1); // 210g CO2 per km by car
-    const meals = (totalCO2Kg / 2).toFixed(1); // 2kg CO2 per meal
+    const kmInCar = (totalCO2Kg / CO2_PER_KM_CAR).toFixed(1);
+    const meals = (totalCO2Kg / CO2_PER_MEAL).toFixed(1);
 
     document.getElementById("comparisonKm").textContent = kmInCar;
     document.getElementById("comparisonMeals").textContent = meals;
@@ -167,7 +181,10 @@ document.addEventListener("DOMContentLoaded", () => {
       date.toLocaleTimeString("en-US");
   }
 
-  // Function to display an error
+  /**
+   * Displays an error message to the user
+   * @param {string} message - Error message to display
+   */
   function showError(message) {
     errorDiv.classList.add("show");
     document.getElementById("errorText").textContent = message;

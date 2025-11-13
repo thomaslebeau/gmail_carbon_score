@@ -5,14 +5,26 @@ const CO2_PER_EMAIL_SIMPLE = 4; // grams of CO2
 const CO2_PER_EMAIL_WITH_ATTACHMENT = 35; // grams of CO2
 const ATTACHMENT_SIZE_THRESHOLD = 100000; // 100KB - threshold to consider a significant attachment
 const NUMBER_OF_MAILS_TO_ANALYSE = null;
+
+// API Configuration
 const BATCH_SIZE = 100; // Batch size for Gmail API (max 100)
 const PARALLEL_BATCHES = 1; // Number of batches executed in parallel
-console.log("test");
+const MAX_RESULTS_PER_PAGE = 500; // Maximum results per page from Gmail API
+const API_REQUEST_DELAY = 100; // Delay between API requests in milliseconds
+const RATE_LIMIT_RETRY_DELAY = 2000; // Delay when rate limited in milliseconds
+const BATCH_GROUP_DELAY_HIGH = 2000; // Delay for large batches in milliseconds
+const BATCH_GROUP_DELAY_LOW = 1500; // Delay for small batches in milliseconds
+const BATCH_COUNT_THRESHOLD = 50; // Threshold to determine batch delay
 
 // ============================================
 // AUTHENTICATION
 // ============================================
 
+/**
+ * Retrieves an authentication token for Gmail API access
+ * @returns {Promise<string>} The authentication token
+ * @throws {Error} If authentication fails
+ */
 async function getAuthToken() {
   return new Promise((resolve, reject) => {
     chrome.identity.getAuthToken({ interactive: true }, (token) => {
@@ -29,6 +41,13 @@ async function getAuthToken() {
 // RETRIEVING MESSAGE LIST
 // ============================================
 
+/**
+ * Retrieves all messages from Gmail
+ * @param {string} token - Authentication token
+ * @param {number|null} maxResults - Maximum number of messages to retrieve (null for all)
+ * @returns {Promise<Array>} Array of message objects with IDs
+ * @throws {Error} If API request fails
+ */
 async function getAllMessages(token, maxResults = null) {
   const messages = [];
   let pageToken = null;
@@ -38,20 +57,14 @@ async function getAllMessages(token, maxResults = null) {
     // If maxResults is null, we fetch ALL messages
     const fetchAll = maxResults === null;
 
-    console.log(
-      fetchAll
-        ? "🔍 Retrieving ALL messages..."
-        : `🔍 Retrieving up to ${maxResults} messages...`
-    );
-
     do {
       const url = new URL(
         "https://www.googleapis.com/gmail/v1/users/me/messages"
       );
 
       // Calculate how many messages remain to be retrieved
-      const remaining = fetchAll ? 500 : maxResults - messages.length;
-      const pageSize = Math.min(500, remaining);
+      const remaining = fetchAll ? MAX_RESULTS_PER_PAGE : maxResults - messages.length;
+      const pageSize = Math.min(MAX_RESULTS_PER_PAGE, remaining);
 
       url.searchParams.append("maxResults", pageSize.toString());
       if (pageToken) {
@@ -59,9 +72,6 @@ async function getAllMessages(token, maxResults = null) {
       }
 
       pageCount++;
-      console.log(
-        `📄 Page ${pageCount} (${messages.length} messages so far)...`
-      );
 
       const response = await fetch(url, {
         headers: {
@@ -77,7 +87,6 @@ async function getAllMessages(token, maxResults = null) {
 
       if (data.messages) {
         messages.push(...data.messages);
-        console.log(`   ✅ ${messages.length} messages retrieved`);
       }
 
       pageToken = data.nextPageToken;
@@ -90,10 +99,8 @@ async function getAllMessages(token, maxResults = null) {
       }
 
       // Short pause between pages to avoid rate limits
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, API_REQUEST_DELAY));
     } while (true);
-
-    console.log(`🎯 Total: ${messages.length} messages retrieved`);
 
     return fetchAll ? messages : messages.slice(0, maxResults);
   } catch (error) {
@@ -106,6 +113,13 @@ async function getAllMessages(token, maxResults = null) {
 // BATCH API - FAST RETRIEVAL OF DETAILS
 // ============================================
 
+/**
+ * Executes a batch request to retrieve message details
+ * @param {string} token - Authentication token
+ * @param {Array<string>} messageIds - Array of message IDs to fetch
+ * @returns {Promise<Array>} Array of message details with size estimates
+ * @throws {Error} If batch request fails
+ */
 async function executeBatchRequest(token, messageIds) {
   const boundary = "batch_boundary_" + Date.now();
 
@@ -121,8 +135,6 @@ async function executeBatchRequest(token, messageIds) {
   batchBody += `--${boundary}--`;
 
   try {
-    console.log(`   🔧 Sending batch of ${messageIds.length} messages...`);
-
     const response = await fetch(
       "https://gmail.googleapis.com/batch/gmail/v1",
       {
@@ -135,35 +147,21 @@ async function executeBatchRequest(token, messageIds) {
       }
     );
 
-    console.log(`   📡 Response status: ${response.status}`);
-    console.log(`   📡 Response headers:`, [...response.headers.entries()]);
-
     if (!response.ok) {
       if (response.status === 429) {
-        console.log("⚠️ Rate limit, waiting 2s...");
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_RETRY_DELAY));
         return executeBatchRequest(token, messageIds);
       }
 
       const errorText = await response.text();
-      console.error("❌ Response error body:", errorText);
-      throw new Error(`Batch failed: ${response.status}`);
+      throw new Error(`Batch failed: ${response.status} - ${errorText}`);
     }
 
     const responseText = await response.text();
 
-    // ⚠️ CRITICAL DEBUG
-    console.log(`   📊 Response length: ${responseText.length} chars`);
-    console.log(`   📄 First 500 chars:`, responseText.substring(0, 500));
-    console.log(
-      `   📄 Last 500 chars:`,
-      responseText.substring(responseText.length - 500)
-    );
-
     // Check if response is empty
     if (!responseText || responseText.trim().length === 0) {
-      console.error("❌ EMPTY RESPONSE!");
-      return [];
+      throw new Error("Empty response from Gmail API");
     }
 
     return parseBatchResponse(responseText);
@@ -173,14 +171,17 @@ async function executeBatchRequest(token, messageIds) {
   }
 }
 
+/**
+ * Parses a batch API response to extract message details
+ * @param {string} responseText - Raw response text from batch API
+ * @returns {Array} Array of parsed message objects
+ */
 function parseBatchResponse(responseText) {
   const results = [];
 
   try {
-    // ⚠️ FIX: Gmail returns "response-item" not "item"
+    // Gmail returns "response-item" not "item"
     const parts = responseText.split(/Content-ID: <response-item\d+>/);
-
-    console.log(`   📦 ${parts.length - 1} parts detected`);
 
     for (let i = 1; i < parts.length; i++) {
       const part = parts[i];
@@ -188,7 +189,6 @@ function parseBatchResponse(responseText) {
       try {
         // Ignore 429 errors
         if (part.includes("429 Too Many Requests")) {
-          console.warn("   ⚠️ Part with 429 error ignored");
           continue;
         }
 
@@ -211,11 +211,14 @@ function parseBatchResponse(responseText) {
     console.error("❌ Global parsing error:", e);
   }
 
-  console.log(`   ✅ ${results.length} messages parsed`);
-
   return results;
 }
 
+/**
+ * Retrieves the total number of emails in the mailbox
+ * @param {string} token - Authentication token
+ * @returns {Promise<number>} Total number of emails
+ */
 async function getTotalEmailCount(token) {
   try {
     const response = await fetch(
@@ -243,6 +246,12 @@ async function getTotalEmailCount(token) {
 // BATCH PROCESSING WITH PARALLELIZATION
 // ============================================
 
+/**
+ * Retrieves message details in batches with parallel processing
+ * @param {string} token - Authentication token
+ * @param {Array<string>} messageIds - Array of message IDs
+ * @returns {Promise<Array>} Array of message details
+ */
 async function getMessageDetailsBatch(token, messageIds) {
   // Split into batches of BATCH_SIZE (100)
   const batches = [];
@@ -250,22 +259,12 @@ async function getMessageDetailsBatch(token, messageIds) {
     batches.push(messageIds.slice(i, i + BATCH_SIZE));
   }
 
-  console.log(
-    `📦 ${messageIds.length} messages to analyze in ${batches.length} batches`
-  );
-
   const allDetails = [];
   let processedMessages = 0;
 
   // Process batches in parallel groups of PARALLEL_BATCHES
   for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
     const parallelBatches = batches.slice(i, i + PARALLEL_BATCHES);
-
-    console.log(
-      `🔄 Processing group ${
-        Math.floor(i / PARALLEL_BATCHES) + 1
-      }/${Math.ceil(batches.length / PARALLEL_BATCHES)}`
-    );
 
     const messagesInGroup = parallelBatches.reduce(
       (sum, batch) => sum + batch.length,
@@ -296,14 +295,10 @@ async function getMessageDetailsBatch(token, messageIds) {
 
     // Short pause between each group of parallel batches (avoid 429)
     if (i + PARALLEL_BATCHES < batches.length) {
-      const pause = batches.length > 50 ? 2000 : 1500;
+      const pause = batches.length > BATCH_COUNT_THRESHOLD ? BATCH_GROUP_DELAY_HIGH : BATCH_GROUP_DELAY_LOW;
       await new Promise((resolve) => setTimeout(resolve, pause));
     }
   }
-
-  console.log(
-    `✅ ${allDetails.length} messages analyzed out of ${messageIds.length} requested`
-  );
 
   return allDetails;
 }
@@ -312,6 +307,11 @@ async function getMessageDetailsBatch(token, messageIds) {
 // CARBON FOOTPRINT CALCULATION
 // ============================================
 
+/**
+ * Calculates the carbon footprint of an email based on its size
+ * @param {number} messageSize - Size of the message in bytes
+ * @returns {number} CO2 emissions in grams
+ */
 function calculateCarbonFootprint(messageSize) {
   if (messageSize > ATTACHMENT_SIZE_THRESHOLD) {
     return CO2_PER_EMAIL_WITH_ATTACHMENT;
@@ -319,31 +319,60 @@ function calculateCarbonFootprint(messageSize) {
   return CO2_PER_EMAIL_SIMPLE;
 }
 
+/**
+ * Calculates statistics from message details
+ * @param {Array} details - Array of message details with size estimates
+ * @returns {Object} Statistics including CO2 totals and email counts
+ */
+function calculateStatistics(details) {
+  let totalCO2 = 0;
+  let emailsWithAttachments = 0;
+  let emailsSimple = 0;
+  let skippedMessages = 0;
+
+  details.forEach((detail) => {
+    if (detail && typeof detail.sizeEstimate === "number") {
+      const co2 = calculateCarbonFootprint(detail.sizeEstimate);
+      totalCO2 += co2;
+
+      if (detail.sizeEstimate > ATTACHMENT_SIZE_THRESHOLD) {
+        emailsWithAttachments++;
+      } else {
+        emailsSimple++;
+      }
+    } else {
+      skippedMessages++;
+    }
+  });
+
+  return {
+    totalCO2,
+    emailsWithAttachments,
+    emailsSimple,
+    skippedMessages
+  };
+}
+
 // ============================================
 // MAIN ANALYSIS
 // ============================================
 
+/**
+ * Analyzes the mailbox and calculates total carbon footprint
+ * @returns {Promise<Object>} Analysis results including CO2 totals and statistics
+ * @throws {Error} If analysis fails
+ */
 async function analyzeMailbox() {
   try {
     const token = await getAuthToken();
 
     // 1️⃣ Retrieve total number of emails
-    console.log("📬 Retrieving total number of emails...");
     const totalInMailbox = await getTotalEmailCount(token);
-    console.log(`✅ ${totalInMailbox} emails total in mailbox`);
 
     // 2️⃣ Decide how many to analyze
     const analyzeAll =
       NUMBER_OF_MAILS_TO_ANALYSE === null ||
       NUMBER_OF_MAILS_TO_ANALYSE >= totalInMailbox;
-
-    if (analyzeAll) {
-      console.log("📧 Analyzing ALL emails...");
-    } else {
-      console.log(
-        `📧 Analyzing the last ${NUMBER_OF_MAILS_TO_ANALYSE} emails...`
-      );
-    }
 
     // 3️⃣ Retrieve messages
     const messages = await getAllMessages(
@@ -351,38 +380,13 @@ async function analyzeMailbox() {
       analyzeAll ? null : NUMBER_OF_MAILS_TO_ANALYSE
     );
 
-    console.log(`🔍 Detailed analysis of ${messages.length} messages...`);
-
     // 4️⃣ Analyze with Batch API
     const messageIds = messages.map((m) => m.id);
     const details = await getMessageDetailsBatch(token, messageIds);
 
     // 5️⃣ Calculate statistics
-    let totalCO2 = 0;
-    let emailsWithAttachments = 0;
-    let emailsSimple = 0;
-    let skippedMessages = 0;
-
-    details.forEach((detail) => {
-      if (detail && typeof detail.sizeEstimate === "number") {
-        const co2 = calculateCarbonFootprint(detail.sizeEstimate);
-        totalCO2 += co2;
-
-        if (detail.sizeEstimate > ATTACHMENT_SIZE_THRESHOLD) {
-          emailsWithAttachments++;
-        } else {
-          emailsSimple++;
-        }
-      } else {
-        skippedMessages++;
-      }
-    });
-
-    console.log(
-      skippedMessages > 0
-        ? `⚠️ ${skippedMessages} messages skipped`
-        : "✅ All messages analyzed"
-    );
+    const { totalCO2, emailsWithAttachments, emailsSimple, skippedMessages } =
+      calculateStatistics(details);
 
     const results = {
       totalEmailsInMailbox: totalInMailbox,
@@ -401,8 +405,6 @@ async function analyzeMailbox() {
       analyzedDate: new Date().toISOString(),
       carEquivalentKm: Math.round(totalCO2 / 200),
     };
-
-    console.log("📊 Results:", results);
 
     await chrome.storage.local.set({ carbonResults: results });
 
@@ -437,5 +439,3 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
-
-console.log("🌱 Gmail Carbon Score extension loaded");
