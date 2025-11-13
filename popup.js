@@ -1,4 +1,4 @@
-// popup.js - Script pour l'interface utilisateur de l'extension
+// popup.js - Script for the extension's user interface
 
 document.addEventListener("DOMContentLoaded", () => {
   const analyzeBtn = document.getElementById("analyzeBtn");
@@ -9,13 +9,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const progressText = document.getElementById("progressText");
   const logoutBtn = document.getElementById("logoutBtn");
 
-  // ⚠️ APPELER displayConnectedAccount() au démarrage
+  // ⚠️ CALL displayConnectedAccount() on startup
   displayConnectedAccount();
 
-  // Charger les résultats existants au démarrage
+  // Load existing results on startup
   loadExistingResults();
 
-  // Gérer le clic sur le bouton d'analyse
+  // Handle click on the analyze button
   analyzeBtn.addEventListener("click", () => {
     startAnalysis();
   });
@@ -24,18 +24,18 @@ document.addEventListener("DOMContentLoaded", () => {
     logout();
   });
 
-  // ⚠️ FONCTION displayConnectedAccount (déplacée ici)
+  // ⚠️ FUNCTION displayConnectedAccount (moved here)
   async function displayConnectedAccount() {
     try {
       const token = await new Promise((resolve) => {
         chrome.identity.getAuthToken({ interactive: false }, (token) => {
-          // Ignorer l'erreur et juste retourner null si pas de token
+          // Ignore error and just return null if no token
           resolve(token || null);
         });
       });
 
       if (token) {
-        // Récupérer l'email du compte connecté
+        // Retrieve the email of the connected account
         const response = await fetch(
           "https://www.googleapis.com/gmail/v1/users/me/profile",
           {
@@ -49,75 +49,75 @@ document.addEventListener("DOMContentLoaded", () => {
           const data = await response.json();
           const email = data.emailAddress;
 
-          // Afficher l'email dans le popup
+          // Display the email in the popup
           document.getElementById("connectedEmail").textContent = email;
         } else {
-          // Pas connecté
+          // Not connected
           document.getElementById("connectedEmail").textContent =
-            "Non connecté";
+            "Not connected";
         }
       } else {
-        // Pas de token
-        document.getElementById("connectedEmail").textContent = "Non connecté";
+        // No token
+        document.getElementById("connectedEmail").textContent = "Not connected";
       }
     } catch (error) {
-      console.error("Erreur récupération email:", error);
-      document.getElementById("connectedEmail").textContent = "Erreur";
+      console.error("Error retrieving email:", error);
+      document.getElementById("connectedEmail").textContent = "Error";
     }
   }
 
   async function logout() {
-    if (!confirm("Voulez-vous vous déconnecter ?")) {
+    if (!confirm("Do you want to log out?")) {
       return;
     }
 
     try {
-      // 1. Récupérer le token
+      // 1. Retrieve the token
       const token = await new Promise((resolve) => {
         chrome.identity.getAuthToken({ interactive: false }, (t) => {
           resolve(t || null);
         });
       });
 
-      // 2. Supprimer le token du cache
+      // 2. Remove the token from cache
       if (token) {
         await new Promise((resolve) => {
           chrome.identity.removeCachedAuthToken({ token: token }, resolve);
         });
       }
 
-      // 3. Effacer toutes les données locales
+      // 3. Clear all local data
       await chrome.storage.local.clear();
 
       // 4. Message
-      alert("Déconnexion réussie !\n\nVous pourrez choisir un autre compte.");
+      alert("Logout successful!\n\nYou can choose another account.");
 
-      // 5. Fermer le popup
+      // 5. Close the popup
       window.close();
     } catch (error) {
-      console.error("Erreur:", error);
-      alert("Erreur. Fermez l'extension et réessayez.");
+      console.error("Error:", error);
+      alert("Error. Close the extension and try again.");
     }
   }
 
-  // Fonction pour démarrer l'analyse
+  // Function to start the analysis
   function startAnalysis() {
-    // Désactiver le bouton et afficher la progression
+    // Disable the button and show progress
     analyzeBtn.disabled = true;
-    analyzeBtn.textContent = "⏳ Analyse en cours...";
+    analyzeBtn.textContent = "⏳ Analysis in progress...";
     progressDiv.classList.add("show");
     resultsDiv.classList.remove("show");
     errorDiv.classList.remove("show");
 
-    // Envoyer la demande d'analyse au background script
+    // Send the analysis request to the background script
     chrome.runtime.sendMessage({ action: "analyze" }, (response) => {
       analyzeBtn.disabled = false;
-      analyzeBtn.textContent = "🔍 Analyser ma boîte mail";
+      analyzeBtn.textContent = "🔍 Analyze my mailbox";
       progressDiv.classList.remove("show");
 
       if (response.success) {
         displayResults(response.data);
-        // ⚠️ Rafraîchir l'email après analyse (au cas où c'est la première connexion)
+        // ⚠️ Refresh email after analysis (in case it's the first connection)
         displayConnectedAccount();
       } else {
         showError(response.error);
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fonction pour charger les résultats existants
+  // Function to load existing results
   function loadExistingResults() {
     chrome.runtime.sendMessage({ action: "getResults" }, (response) => {
       if (response.success && response.data) {
@@ -134,52 +134,52 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fonction pour afficher les résultats
+  // Function to display results
   function displayResults(data) {
-    // Afficher la section des résultats
+    // Display the results section
     resultsDiv.classList.add("show");
 
-    // Remplir les valeurs
+    // Fill in the values
     document.getElementById("totalCO2Kg").textContent = data.totalCO2Kg;
     document.getElementById("totalCO2Grams").textContent =
-      data.totalCO2Grams.toLocaleString("fr-FR");
+      data.totalCO2Grams.toLocaleString("en-US");
     document.getElementById("totalEmails").textContent =
-      data.totalEmails.toLocaleString("fr-FR");
+      data.totalEmails.toLocaleString("en-US");
     document.getElementById("avgCO2").textContent = data.averageCO2PerEmail;
     document.getElementById("emailsSimple").textContent =
-      data.emailsSimple.toLocaleString("fr-FR");
+      data.emailsSimple.toLocaleString("en-US");
     document.getElementById("emailsAttachments").textContent =
-      data.emailsWithAttachments.toLocaleString("fr-FR");
+      data.emailsWithAttachments.toLocaleString("en-US");
 
-    // Calculs de comparaison
+    // Comparison calculations
     const totalCO2Kg = parseFloat(data.totalCO2Kg);
-    const kmInCar = (totalCO2Kg / 0.21).toFixed(1); // 210g CO2 par km en voiture
-    const meals = (totalCO2Kg / 2).toFixed(1); // 2kg CO2 par repas
+    const kmInCar = (totalCO2Kg / 0.21).toFixed(1); // 210g CO2 per km by car
+    const meals = (totalCO2Kg / 2).toFixed(1); // 2kg CO2 per meal
 
     document.getElementById("comparisonKm").textContent = kmInCar;
     document.getElementById("comparisonMeals").textContent = meals;
 
-    // Date de dernière analyse
+    // Last analysis date
     const date = new Date(data.analyzedDate);
     document.getElementById("lastUpdate").textContent =
-      date.toLocaleDateString("fr-FR") +
-      " à " +
-      date.toLocaleTimeString("fr-FR");
+      date.toLocaleDateString("en-US") +
+      " at " +
+      date.toLocaleTimeString("en-US");
   }
 
-  // Fonction pour afficher une erreur
+  // Function to display an error
   function showError(message) {
     errorDiv.classList.add("show");
     document.getElementById("errorText").textContent = message;
   }
 
-  // Écouter les mises à jour de progression
+  // Listen for progress updates
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "progress") {
       const percent = Math.round((request.processed / request.total) * 100);
       progressFill.style.width = percent + "%";
       progressFill.textContent = percent + "%";
-      progressText.textContent = `Analyse en cours... ${request.processed}/${request.total} emails`;
+      progressText.textContent = `Analysis in progress... ${request.processed}/${request.total} emails`;
     }
   });
 });
