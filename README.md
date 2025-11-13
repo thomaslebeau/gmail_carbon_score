@@ -46,12 +46,18 @@ L'extension considère qu'un email a une pièce jointe significative s'il dépas
 2. Remplacez `YOUR_CLIENT_ID.apps.googleusercontent.com` par votre vrai Client ID
 3. Créez les icônes (ou utilisez les icônes fournies)
 
-### Étape 3 : Installation dans Chrome
+### Étape 3 : Build du projet
+
+1. Installez les dépendances : `npm install`
+2. Compilez le projet : `npm run build`
+3. Le dossier `dist/` contient maintenant l'extension compilée
+
+### Étape 4 : Installation dans Chrome
 
 1. Ouvrez Chrome et allez sur `chrome://extensions/`
 2. Activez le "Mode développeur" (en haut à droite)
 3. Cliquez sur "Charger l'extension non empaquetée"
-4. Sélectionnez le dossier `gmail-carbon-extension`
+4. Sélectionnez le dossier `dist/`
 5. L'extension est maintenant installée !
 
 ## 📱 Utilisation
@@ -103,25 +109,80 @@ L'empreinte carbone moyenne par email
 
 - Chrome Extension API (Manifest V3)
 - Gmail API v1
-- Vanilla JavaScript (pas de framework)
+- TypeScript
 - CSS moderne avec gradients et animations
 
 ## 📝 Structure du projet
 
 ```
-gmail-carbon-extension/
-├── manifest.json          # Configuration de l'extension
-├── background.js          # Service Worker (logique principale)
+gmail-carbon-score/
+├── src/                  # Code source TypeScript
+│   ├── background.ts     # Service Worker (logique principale)
+│   ├── popup.ts          # Script du popup
+│   └── content.ts        # Script injecté dans Gmail
+├── dist/                 # Fichiers compilés (généré par le build)
+├── manifest.json         # Configuration de l'extension
 ├── popup.html            # Interface du popup
-├── popup.js              # Script du popup
-├── content.js            # Script injecté dans Gmail
 ├── styles.css            # Styles pour le widget Gmail
 ├── icons/                # Icônes de l'extension
 │   ├── icon16.png
 │   ├── icon48.png
 │   └── icon128.png
+├── package.json          # Dépendances et scripts de build
+├── tsconfig.json         # Configuration TypeScript
+├── build.sh              # Script de build
 └── README.md             # Ce fichier
 ```
+
+## 👨‍💻 Développement
+
+### Prérequis
+
+- Node.js (version 16 ou supérieure)
+- npm
+
+### Installation des dépendances
+
+```bash
+npm install
+```
+
+### Build du projet
+
+Pour compiler le TypeScript et créer le fichier zip :
+
+```bash
+npm run build
+```
+
+Ou utilisez le script de build :
+
+```bash
+./build.sh
+```
+
+Cette commande va :
+1. Nettoyer le dossier `dist/`
+2. Compiler les fichiers TypeScript vers JavaScript
+3. Copier les fichiers statiques (manifest, HTML, CSS, icônes)
+4. Créer un fichier zip `gmail-carbon-score.zip` prêt à être distribué
+
+### Mode développement
+
+Pour compiler automatiquement lors des modifications :
+
+```bash
+npm run watch
+```
+
+### Commandes disponibles
+
+- `npm run build` - Build complet (clean + compile + copy + zip)
+- `npm run clean` - Nettoie le dossier dist
+- `npm run compile` - Compile TypeScript vers JavaScript
+- `npm run copy` - Copie les fichiers statiques
+- `npm run zip` - Crée l'archive zip
+- `npm run watch` - Compilation automatique des changements
 
 ## 🐛 Problèmes connus
 
