@@ -3,7 +3,14 @@
 (function() {
   'use strict';
 
-  // Create the carbon score widget
+  // Constants
+  const GMAIL_CHECK_INTERVAL = 1000; // Interval to check if Gmail is loaded (ms)
+  const GMAIL_LOAD_TIMEOUT = 30000; // Max time to wait for Gmail to load (ms)
+
+  /**
+   * Creates the carbon score widget DOM element
+   * @returns {HTMLElement} The widget element
+   */
   function createCarbonWidget() {
     const widget = document.createElement('div');
     widget.id = 'gmail-carbon-widget';
@@ -32,7 +39,9 @@
     return widget;
   }
 
-  // Inject the widget into Gmail
+  /**
+   * Injects the carbon widget into the Gmail interface
+   */
   function injectWidget() {
     // Wait for Gmail to be loaded
     const checkGmailLoaded = setInterval(() => {
@@ -57,13 +66,15 @@
         
         clearInterval(checkGmailLoaded);
       }
-    }, 1000);
+    }, GMAIL_CHECK_INTERVAL);
 
-    // Stop after 30 seconds
-    setTimeout(() => clearInterval(checkGmailLoaded), 30000);
+    // Stop after timeout
+    setTimeout(() => clearInterval(checkGmailLoaded), GMAIL_LOAD_TIMEOUT);
   }
 
-  // Load the carbon score
+  /**
+   * Loads carbon score data from storage
+   */
   function loadCarbonScore() {
     chrome.runtime.sendMessage({ action: 'getResults' }, (response) => {
       if (response.success && response.data) {
@@ -78,7 +89,10 @@
     });
   }
 
-  // Update the widget with data
+  /**
+   * Updates the widget with carbon score data
+   * @param {Object} data - Carbon score analysis results
+   */
   function updateWidget(data) {
     const widget = document.getElementById('gmail-carbon-widget');
     if (!widget) return;
